@@ -10,8 +10,8 @@ PageRank is the foundational algorithm that powered Google's search engine, rank
 
 | Implementation | Iterations | Total Time | Time/Iter | Bandwidth | Speedup |
 |----------------|------------|------------|-----------|-----------|---------|
-| **CPU (NumPy)** | 62 | 210.30 seconds | 3.39 seconds | N/A | 1x |
-| **GPU Scalar** | 62 | **0.197 seconds** | 3.18 ms | 32.62 GB/s | **1,067x** |
+| **CPU (NumPy)** | 62 | 210.30 seconds | 3.392 seconds | N/A | 1x |
+| **GPU Scalar** | 62 | **0.197 seconds** | 3.178 ms | 32.62 GB/s | **1,067x** |
 | **GPU Vector** | 10 | **0.007 seconds** | 0.696 ms | **148.92 GB/s** | **4,874x** |
 
 ## 🧠 Algorithm Background
@@ -153,14 +153,14 @@ Iteration | Residual (L1) | Time (ms) | Status
 
 3. **Download and Prepare Data**
    ```python
-   # Downloads 20MB compressed graph data from Stanford SNAP
+   # Downloads 20.2MB compressed graph data from Stanford SNAP
    # Converts to optimized CSR format with sorted columns
    ```
 
 4. **Run CPU Baseline**
    ```python
    # Runs NumPy implementation for comparison
-   # Takes ~3.5 minutes (210 seconds)
+   # Takes ~3.5 minutes (210.3 seconds)
    ```
 
 5. **Compile and Run CUDA Implementations**
@@ -216,8 +216,8 @@ CUDA_PageRank/
 ## 🔧 Technical Details
 
 ### GPU Configuration
-- **Scalar Kernel**: 256 threads/block, 3,580 blocks
-- **Vector Kernel**: 256 threads/block (8 warps), 28,638 blocks
+- **Scalar Kernel**: 256 threads/block, ~3,580 blocks
+- **Vector Kernel**: 256 threads/block (8 warps), ~114,554 blocks  
 - **Architecture**: Compiled for sm_75 (Tesla T4 compatibility)
 - **Memory**: ~113MB GPU memory usage
 
@@ -227,9 +227,10 @@ CUDA_PageRank/
 dim3 blocks_scalar = (N + 256 - 1) / 256;
 dim3 threads_scalar = 256;
 
-// Vector: One warp per row
-dim3 blocks_vector = (N + 8 - 1) / 8;  // 8 warps per block
-dim3 threads_vector = 256;             // 32 * 8 = 256
+// Vector: One warp per row  
+int warps_per_block = 256 / 32;  // 8 warps per block
+dim3 blocks_vector = (N + warps_per_block - 1) / warps_per_block;
+dim3 threads_vector = 256;
 ```
 
 ### Numerical Precision & Convergence

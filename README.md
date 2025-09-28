@@ -1,18 +1,22 @@
 # CUDA PageRank Implementation
 
-A high-performance GPU-accelerated implementation of Google's PageRank algorithm using CUDA, demonstrating **up to 4,874x speedup** over CPU implementation with advanced kernel optimization strategies.
+A high-performance GPU-accelerated implementation of Google's PageRank algorithm using CUDA, demonstrating **up to 4,873x speedup** over CPU implementation with advanced kernel optimization strategies.
 
 ## 🎯 Overview
 
 PageRank is the foundational algorithm that powered Google's search engine, ranking web pages based on their link structure. This project implements PageRank using CUDA for GPU acceleration, featuring both scalar and vector kernel approaches, processing nearly a million web pages with over 5 million links between them.
 
-### Key Results
+**Note**: This implementation was developed as an experimental study for our specific project requirements and use case analysis. Performance results may vary by ±5-10% across different runs due to GPU thermal conditions, system load, and hardware variations.
+
+### Experimental Results
 
 | Implementation | Iterations | Total Time | Time/Iter | Bandwidth | Speedup |
 |----------------|------------|------------|-----------|-----------|---------|
 | **CPU (NumPy)** | 62 | 210.30 seconds | 3.392 seconds | N/A | 1x |
 | **GPU Scalar** | 62 | **0.197 seconds** | 3.178 ms | 32.62 GB/s | **1,067x** |
-| **GPU Vector** | 10 | **0.007 seconds** | 0.696 ms | **148.92 GB/s** | **4,874x** |
+| **GPU Vector** | 10 | **0.007 seconds** | 0.696 ms | **148.92 GB/s** | **4,873x** |
+
+*Results from Tesla T4 GPU - performance may vary ±5-10% based on hardware and system conditions*
 
 ## 🧠 Algorithm Background
 
@@ -93,11 +97,14 @@ __device__ double warpReduceSum(...)  // Warp-level reduction
 ## 📊 Performance Analysis
 
 ### Dataset: Stanford Web-Google Graph
-- **Nodes**: 916,428 web pages
+- **Raw nodes**: 875,713 (from original dataset header)
+- **Processed nodes**: 916,428 (max node_id + 1, accounting for non-contiguous numbering)
 - **Edges**: 5,105,039 links
 - **Average links per page**: 5.57
 - **Dangling nodes**: 176,974 (19.3%)
 - **Source**: [SNAP Stanford](https://snap.stanford.edu/data/web-Google.html)
+
+**Dataset Processing Note**: The processed node count (916,428) exceeds the raw count (875,713) because our implementation uses N = max(node_id) + 1 to handle non-contiguous node numbering in the original graph data.
 
 ### GPU Vector Kernel Convergence (Best Performance)
 ```
@@ -215,11 +222,11 @@ CUDA_PageRank/
 
 ## 🔧 Technical Details
 
-### GPU Configuration
+### GPU Configuration (Experimental Setup)
 - **Scalar Kernel**: 256 threads/block, ~3,580 blocks
 - **Vector Kernel**: 256 threads/block (8 warps), ~114,554 blocks  
 - **Architecture**: Compiled for sm_75 (Tesla T4 compatibility)
-- **Memory**: ~113MB GPU memory usage
+- **Memory**: Total GPU memory usage varies based on data structures
 
 ### Kernel Launch Parameters
 ```cpp
@@ -248,12 +255,12 @@ dim3 threads_vector = 256;
 ## 🔬 Key Insights & Learnings
 
 ### Why Vector Kernel Converges Faster
-The vector kernel's superior convergence (10 vs 62 iterations) suggests:
+The vector kernel's superior convergence (10 vs 62 iterations) in our experiments suggests:
 - **Better numerical stability** from warp-cooperative reductions
 - **More consistent floating-point operation ordering**
 - **Reduced accumulation errors** through parallel summation
 
-### Performance Bottlenecks
+### Performance Bottlenecks (Observed)
 - **Memory bandwidth bound**: Vector kernel achieves 149 GB/s (~47% of T4's peak)
 - **Irregular access patterns**: Graph structure limits perfect coalescing
 - **Load balancing**: Row lengths vary significantly (some pages have many inlinks)
@@ -265,7 +272,7 @@ The vector kernel's superior convergence (10 vs 62 iterations) suggests:
 
 ## 🎓 Educational Value
 
-This implementation demonstrates several important HPC concepts:
+This experimental implementation demonstrates several important HPC concepts:
 
 1. **Sparse Matrix Computing**: Efficient CSR representation and SpMV operations
 2. **GPU Memory Hierarchy**: Coalesced access patterns and bandwidth optimization
@@ -304,6 +311,12 @@ This implementation demonstrates several important HPC concepts:
 3. [Thrust Documentation](https://thrust.github.io/)
 4. [SNAP Stanford Network Analysis Project](https://snap.stanford.edu/)
 
+## ⚠️ Experimental Considerations
+
+- **Performance Variability**: Results may vary ±5-10% across different runs due to GPU thermal throttling, background processes, and hardware variations
+- **Hardware Dependency**: Optimized for Tesla T4 architecture (sm_75) - performance characteristics may differ on other GPU architectures  
+- **Dataset Specificity**: Performance tuned for web graph characteristics - different graph properties may yield different optimal configurations
+- **Project Context**: This implementation was designed for our specific research requirements and may need adaptation for other use cases
 
 ## 📄 License
 
@@ -311,6 +324,6 @@ MIT License - This code is provided for educational and research purposes. Feel 
 
 ---
 
-**Performance Guarantee**: On Tesla T4 or equivalent GPU, this implementation will achieve >1000x speedup over CPU for graphs of similar scale. The vector kernel approach represents state-of-the-art GPU sparse matrix computation techniques.
+**Performance Note**: On Tesla T4 or equivalent GPU, this experimental implementation achieved >1000x speedup over CPU for the tested graph scale. The vector kernel approach represents current GPU sparse matrix computation techniques, though results may vary based on specific hardware and system conditions.
 
-**Educational Note**: This implementation prioritizes code clarity and educational value while maintaining production-level performance. All optimizations are well-documented and explained for learning purposes.
+**Educational Note**: This implementation prioritizes code clarity and educational value while maintaining production-level performance. All optimizations are well-documented and explained for learning purposes, based on our experimental findings and project requirements.

@@ -298,16 +298,12 @@ This implementation demonstrates several important HPC concepts:
 
 ### Academic Papers
 1. [Page, L., Brin, S., Motwani, R., & Winograd, T. (1999). The PageRank Citation Ranking: Bringing Order to the Web](http://ilpubs.stanford.edu:8090/422/)
-2. [Langville, A. N., & Meyer, C. D. (2006). Google's PageRank and beyond: The science of search engine rankings](https://press.princeton.edu/books/hardcover/9780691122021/googles-pagerank-and-beyond)
 
 ### Technical Documentation
-3. [CUDA Programming Guide](https://docs.nvidia.com/cuda/cuda-c-programming-guide/)
-4. [Thrust Documentation](https://thrust.github.io/)
-5. [SNAP Stanford Network Analysis Project](https://snap.stanford.edu/)
+2. [CUDA Programming Guide](https://docs.nvidia.com/cuda/cuda-c-programming-guide/)
+3. [Thrust Documentation](https://thrust.github.io/)
+4. [SNAP Stanford Network Analysis Project](https://snap.stanford.edu/)
 
-### Graph Processing Resources
-6. [Sparse Matrix Formats for GPU Computing](https://developer.nvidia.com/blog/accelerating-matrix-operations-with-gpu-tensor-cores/)
-7. [High-Performance Graph Analytics](https://parlab.eecs.berkeley.edu/)
 
 ## 📄 License
 

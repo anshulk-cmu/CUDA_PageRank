@@ -1,7 +1,7 @@
 # GPU Programming Assignment Report
 ## CUDA Implementation of PageRank Algorithm (Google Search Engine)
 
-**Team Members:** Anshul K & Neha  
+**Team Members:** Anshul Kumar & Neha Prasad  
 **Course:** GPU Programming  
 **Problem Selected:** PageRank Algorithm Implementation  
 **Implementation Language:** CUDA C++
@@ -147,5 +147,4 @@ The implementation successfully combines multiple GPU optimization techniques—
 
 ---
 **Code Repository:** https://github.com/anshulk-cmu/CUDA_PageRank  
-**Runtime Environment:** Google Colab with Tesla T4 GPU  
-**Total Development Time:** 2 weeks (implementation, optimization, and analysis)
+**Runtime Environment:** Google Colab with Tesla T4 GPU

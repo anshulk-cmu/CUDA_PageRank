@@ -1,246 +1,152 @@
-# CUDA PageRank Implementation
+# **CUDA PageRank**
 
-A high-performance GPU-accelerated implementation of Google's PageRank algorithm using CUDA, demonstrating **~1000x speedup** over CPU implementation on real web graph data.
+A high-performance, GPU-accelerated implementation of Google's PageRank algorithm using CUDA C++. This project analyzes two distinct GPU parallelization strategies—a simple **Scalar Kernel** and an optimized **Vector Kernel**—achieving up to **\~4800x speedup** over a standard CPU implementation on a real-world web graph.
 
-## 🎯 Overview
+## **🎯 Overview**
 
-PageRank is the foundational algorithm that powered Google's search engine, ranking web pages based on their link structure. This project implements PageRank using CUDA for GPU acceleration, processing nearly a million web pages with over 5 million links between them.
+PageRank is the foundational algorithm that powered Google's search engine, ranking web pages based on their link structure. This project implements PageRank on the GPU, processing a graph of nearly one million web pages and over five million links. The core focus is to compare the performance of assigning one thread per page versus one warp (32 threads) per page.
 
-### Key Results
+### **Key Results**
 
-| Implementation | Time | Speedup | Memory Bandwidth |
-|----------------|------|---------|------------------|
-| **CPU (NumPy)** | 218.4 seconds | 1x | Limited |
-| **GPU (CUDA)** | **0.22 seconds** | **985x** | **43.0 GB/s** |
+The analysis clearly shows the superiority of the warp-per-row (Vector) approach, which better utilizes the GPU's memory bandwidth and parallel processing capabilities.
 
-## 🧠 Algorithm Background
+| Implementation | Time / Iter (ms) | Total Time (ms) | Speedup vs. CPU | Memory Bandwidth |
+| :---- | :---- | :---- | :---- | :---- |
+| **CPU (NumPy)** | 3391.960 | 210,301.53 | 1x | N/A |
+| **GPU Scalar** | 3.178 | 197.06 | **1067x** | 32.62 GB/s |
+| **GPU Vector** | **0.696** | **6.96** | **4873x** | **148.92 GB/s** |
 
-### What is PageRank?
+## **🧠 Algorithm Background**
+
+### **What is PageRank?**
 
 PageRank determines the "importance" of web pages using this principle:
-- **A page is important if other important pages link to it**
-- It's like academic citations - papers are credible if cited by other credible papers
-- The algorithm iteratively computes importance scores until convergence
 
-### Mathematical Foundation
+* **A page is important if other important pages link to it**.  
+* It's analogous to academic citations—a paper is considered credible if cited by other credible papers.  
+* The algorithm iteratively computes these importance scores (ranks) until they stabilize.
 
-The PageRank formula:
-```
-PR(page) = (1-d)/N + d × Σ(PR(linking_page) / outbound_links(linking_page))
-```
+### **Mathematical Foundation**
 
+The PageRank formula is implemented as follows:
+
+PR(page)=N1−d​+d×p∈in-links∑​out-links(p)PR(p)​  
 Where:
-- `d = 0.85` (damping factor - simulates random web browsing)
-- `N` = total number of pages
-- The sum is over all pages linking to the current page
 
-## 🚀 Implementation Approach
+* d \= 0.85 is the damping factor, simulating an 85% chance a user clicks a link.  
+* N is the total number of pages in the graph.  
+* The summation is over all pages p that link *to* the current page.
 
-### Data Structure: CSR (Compressed Sparse Row)
+## **🚀 Implementation Approach**
 
-We convert the web graph into CSR format for efficient GPU processing:
+### **Data Structure: CSR (Compressed Sparse Row)**
 
-```
-Original: "Page A links to Page B"
-CSR:      "For each page, store all pages that link TO it"
-```
+To represent the sparse web graph efficiently on the GPU, we convert the edge list into an **in-neighbor CSR format**.
 
-This optimization enables:
-- **Coalesced memory access** on GPU
-- **Efficient sparse matrix-vector multiplication**
-- **Minimal memory overhead**
+Original: "Page A links to Page B"  
+CSR:      "For each page, store an array of all pages that link TO it"
 
-### GPU Kernels
+This structure is ideal for a "pull-style" PageRank and enables:
 
-1. **SpMV Kernel**: Performs sparse matrix-vector multiplication
-   ```cuda
-   __global__ void spmv_pull_kernel(...)
-   ```
+* **Coalesced memory access** patterns on the GPU.  
+* **Efficient sparse matrix-vector multiplication** (SpMV), the core operation.  
+* **Minimal memory footprint** compared to a dense matrix.
 
-2. **Finalize Kernel**: Applies damping factor and normalization
-   ```cuda
-   __global__ void finalize_kernel(...)
-   ```
+### **GPU Kernels Compared**
 
-### Algorithm Steps
+This project implements and compares two CUDA kernels for the SpMV step:
 
-1. **Initialize**: All pages start with equal rank `1/N`
-2. **Iterate**: 
-   - Compute matrix-vector product (link propagation)
-   - Handle dangling nodes (pages with no outbound links)
-   - Apply damping factor
-   - Check convergence
-3. **Converge**: Stop when rank changes are below threshold
+1. **Scalar Kernel (spmv\_scalar\_kernel)**: The straightforward approach.  
+   * **Strategy**: **One GPU thread processes one full row** (one web page).  
+   * **Limitation**: Can lead to work imbalance if pages have vastly different numbers of incoming links.  
+2. **Vector Kernel (spmv\_vector\_kernel)**: A more advanced, warp-centric approach.  
+   * **Strategy**: **One GPU warp (32 threads) collaborates to process one row**.  
+   * **Optimization**: Threads within a warp divide the work of summing up contributions from incoming links. A highly efficient warpReduceSum intrinsic is used to aggregate the final result, maximizing memory throughput.
 
-## 📊 Performance Analysis
+## **📊 Performance Analysis**
 
-### Dataset: Stanford Web-Google Graph
-- **Nodes**: 916,428 web pages
-- **Edges**: 5,105,039 links
-- **Average links per page**: 5.57
-- **Source**: [SNAP Stanford](https://snap.stanford.edu/data/web-Google.html)
+### **Dataset: Stanford Web-Google Graph**
 
-### Convergence Behavior
-```
-Iteration | Residual (L1) | Time (ms) | Status
-----------|---------------|-----------|--------
-    1     | 8.508467e-01  |   3.668   | Running
-   10     | 1.329880e-02  |   3.437   | Running
-   20     | 1.827460e-03  |   3.445   | Running
-   30     | 3.289641e-04  |   3.402   | Running
-   40     | 6.311191e-05  |   3.221   | Running
-   50     | 1.240221e-05  |   3.244   | Running
-   60     | 2.463703e-06  |   3.294   | Running
-   66     | 9.360145e-07  |   3.204   | CONVERGED ✅
-```
+* **Nodes**: 916,428 web pages  
+* **Edges**: 5,105,039 links  
+* **Average links per page**: 5.57  
+* **Source**: [SNAP Stanford](https://snap.stanford.edu/data/web-Google.html)
 
-### Memory Usage
-- **Total GPU Memory**: 112.9 MB
-- **Memory Transfer Time**: 197.7 ms (one-time overhead)
-- **Memory Bandwidth**: 43.0 GB/s
+### **Convergence Behavior**
 
-## 🛠 How to Reproduce
+A fascinating result was the difference in convergence. While mathematically identical, the different order of floating-point operations in the parallel reduction led the Vector Kernel to converge much faster.
 
-### Prerequisites
+**Scalar Kernel Convergence:**
 
-1. **Google Colab** with GPU runtime enabled
-   - Go to Runtime → Change runtime type → Hardware accelerator → GPU
+Iter | Residual (L1) | Time (ms) | Status  
+\-----|---------------|-----------|--------  
+   1 | 8.508467e-01 |    3.446 | Running  
+  10 | 1.090636e-02 |    3.298 | Running  
+  ...| ...           |    ...   | ...  
+  60 | 1.219864e-06 |    2.993 | Running  
+  62 | 8.729468e-07 |    2.972 | CONVERGED ✅
 
-2. **CUDA Environment**
-   - CUDA 12.4+ (available in Colab)
-   - NVIDIA GPU with compute capability 7.5+ (Tesla T4 works perfectly)
+**Vector Kernel Convergence:**
 
-### Step-by-Step Instructions
+Iter | Residual (L1) | Time (ms) | Status  
+\-----|---------------|-----------|--------  
+   1 | 6.913818e-01 |    0.737 | Running  
+  10 | 4.030835e-07 |    0.682 | CONVERGED ✅
 
-1. **Clone and Open Notebook**
-   ```bash
-   # Open in Google Colab
-   https://colab.research.google.com/github/anshulk-cmu/CUDA_PageRank/blob/main/CUDA_PageRank_(Google_Search_Engine).ipynb
-   ```
+## **🛠 How to Reproduce**
 
-2. **Run Environment Check**
-   ```python
-   # First cell - verifies GPU availability
-   # Should show Tesla T4 or similar GPU
-   ```
+### **Prerequisites**
 
-3. **Download and Prepare Data**
-   ```python
-   # Downloads Stanford web-Google dataset
-   # Converts to CSR format for GPU processing
-   ```
+1. **Google Colab** with a GPU runtime enabled.  
+   * Go to Runtime → Change runtime type → Hardware accelerator → GPU.  
+2. **CUDA Environment**  
+   * CUDA 12.5+ (standard in Colab).  
+   * NVIDIA GPU with compute capability 7.5+ (the notebook was tested on a Tesla T4).
 
-4. **Run CPU Baseline**
-   ```python
-   # Runs NumPy implementation for comparison
-   # Takes ~3-4 minutes
-   ```
+### **Step-by-Step Instructions**
 
-5. **Compile and Run CUDA**
-   ```python
-   # Compiles CUDA code and executes
-   # Takes ~0.2 seconds!
-   ```
+1. **Open the Notebook in Colab**: Use the main .ipynb file from the repository.  
+2. **Run Environment Check**: The first cell verifies GPU availability and logs system details. It should detect a **Tesla T4** GPU.  
+3. **Download and Prepare Data**: The second and third cells download the web-Google dataset and convert it into the optimized CSR format.  
+4. **Run CPU Baseline**: This cell runs the pure NumPy implementation for comparison. It takes approximately 3-4 minutes to complete.  
+5. **Compile and Run CUDA Kernels**: This cell writes the CUDA C++ source code, compiles it with nvcc, and runs the executable. The program will benchmark both the Scalar and Vector kernels, printing the results for each. This step completes in under a second.  
+6. **Analyze Final Results**: The last cell collects the performance data from the CPU and GPU runs and displays the final summary table.
 
-### Expected Output
+### **Expected Output**
 
-```
-=== CUDA PageRank Implementation ===
-Problem Size:
-  Nodes (web pages): 916428
-  Edges (links):     5105039
+\=== CUDA PageRank: Scalar vs Vector Kernel Comparison \===
+
+Problem Size:  
+  Nodes (web pages): 916428  
+  Edges (links):     5105039  
   Avg links/page:    5.57
 
-Memory transfer completed in 197.7 ms (112.9 MB total)
+\--- Testing Scalar Method \---  
+...  
+Convergence: SUCCESS after 62 iterations.  
+JSON\_RESULT: {"method":"GPU Scalar", ... "gbs":32.62}
 
-Starting PageRank iterations...
-[Progress table showing convergence]
+\--- Testing Vector Method \---  
+...  
+Convergence: SUCCESS after 10 iterations.  
+JSON\_RESULT: {"method":"GPU Vector", ... "gbs":148.92}
 
-=== Results Summary ===
-Convergence:       SUCCESS after 66 iterations
-Total time:        221.915 ms
-Memory bandwidth:  42.98 GB/s
-```
+## **🎓 Educational Value**
 
-## 📁 Project Structure
+This implementation is a practical case study in high-performance computing, demonstrating:
 
-```
-CUDA_PageRank/
-├── CUDA_PageRank_(Google_Search_Engine).ipynb  # Main notebook
-├── README.md                                   # This file
-└── Generated during execution:
-    ├── /content/drive/MyDrive/cuda-pagerank/
-    │   ├── data/web-Google.txt                 # Raw graph data
-    │   ├── prep/in_csr_webGoogle.npz          # Preprocessed CSR
-    │   └── bin/                               # Binary files for CUDA
-    │       ├── row_ptr.bin
-    │       ├── col_idx.bin
-    │       ├── val.bin
-    │       ├── outdeg.bin
-    │       └── meta.json
-    └── /content/pagerank_pull.cu              # CUDA source code
-```
+1. **Sparse Matrix Algorithms**: Efficiently handling large, sparse graphs common in real-world data.  
+2. **GPU Parallelization Strategies**: Understanding the trade-offs between simple (thread-per-row) and advanced (warp-per-row) parallel designs.  
+3. **Performance Optimization**: Highlighting the critical role of memory coalescing and maximizing memory bandwidth.  
+4. **CUDA Programming**: Using CUDA C++, Thrust, and warp-level intrinsics (\_\_shfl\_down\_sync) for fine-grained optimization.  
+5. **Numerical Stability**: Observing how parallel execution can affect the convergence path of iterative algorithms.
 
-## 🔧 Technical Details
+## **📚 References**
 
-### GPU Configuration
-- **Threads per block**: 256
-- **Total blocks**: 3,580
-- **Architecture**: Compiled for sm_75 (Tesla T4)
+1. [Page, L., Brin, S., Motwani, R., & Winograd, T. (1999). The PageRank Citation Ranking: Bringing Order to the Web](http://ilpubs.stanford.edu:8090/422/)  
+2. [SNAP Stanford Network Analysis Project](https://snap.stanford.edu/)  
+3. [CUDA C++ Programming Guide](https://docs.nvidia.com/cuda/cuda-c-programming-guide/)
 
-### Numerical Precision
-- **Data type**: Double precision (float64)
-- **Convergence tolerance**: 1e-6
-- **Damping factor**: 0.85 (standard PageRank value)
+## **📄 License**
 
-### Memory Optimization
-- **CSR format**: Minimizes memory footprint
-- **Sorted column indices**: Improves memory coalescing
-- **Thrust library**: High-performance parallel primitives
-
-### Error Handling
-- Binary file validation
-- GPU memory allocation checks
-- Convergence monitoring with iteration limits
-
-## 🎓 Educational Value
-
-This implementation demonstrates several important concepts:
-
-1. **Sparse Matrix Operations**: Efficient handling of large, sparse graphs
-2. **GPU Memory Management**: Optimal data transfer and storage patterns
-3. **Parallel Algorithm Design**: Mapping iterative algorithms to GPU architecture
-4. **Performance Optimization**: Memory coalescing and bandwidth utilization
-5. **Real-world Applications**: How academic algorithms power industry solutions
-
-## 🔬 Extending the Project
-
-### Potential Improvements
-
-1. **Multi-GPU Support**: Scale to even larger graphs
-2. **Mixed Precision**: Use float16 for memory savings
-3. **Graph Partitioning**: Handle graphs larger than GPU memory
-4. **Personalized PageRank**: Implement topic-sensitive variants
-5. **Comparative Analysis**: Test other graph algorithms
-
-### Alternative Datasets
-
-Try other SNAP datasets:
-- `web-Stanford.txt` (smaller, good for testing)
-- `web-BerkStan.txt` (medium size)
-- `web-NotreDame.txt` (different graph properties)
-
-## 📚 References
-
-1. [Page, L., Brin, S., Motwani, R., & Winograd, T. (1999). The PageRank Citation Ranking: Bringing Order to the Web](http://ilpubs.stanford.edu:8090/422/)
-2. [SNAP Stanford Network Analysis Project](https://snap.stanford.edu/)
-3. [CUDA Programming Guide](https://docs.nvidia.com/cuda/cuda-c-programming-guide/)
-4. [Thrust Documentation](https://thrust.github.io/)
-
-## 📄 License
-
-MIT License - feel free to use this code for research and educational purposes.
-
----
-
-**Note**: This implementation prioritizes educational clarity and performance demonstration. For production use, consider additional optimizations like memory pooling, error recovery, and distributed computing support.
+This project is licensed under the MIT License. Feel free to use and adapt this code for educational and research purposes.
